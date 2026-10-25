@@ -63,3 +63,33 @@ test('wrong headers, a short sha, a bad date and a missing route are named failu
     empty.server.close();
   }
 });
+
+test('the collector is probed when mounted: OPTIONS and an empty POST must be 204 + no-store; absent is reported, not failed', async () => {
+  const ok = { '/health': { status: 200, headers: J, body: '{"ok":true}' }, '/__build': { status: 200, headers: J, body: `{"commit":"${SHA}","built_at":"2026-10-25T02:00:00.000Z"}` } };
+  const withC = await serve({ ...ok, '/__pulse/e': { status: 204, headers: { 'cache-control': 'no-store' }, body: '' } });
+  try {
+    const r = await checkContract(withC.base);
+    assert.equal(r.collector, 'ok');
+    assert.equal(r.ok, true);
+  } finally {
+    withC.server.close();
+  }
+  const without = await serve(ok);
+  try {
+    const r = await checkContract(without.base);
+    assert.equal(r.collector, 'absent');
+    assert.equal(r.ok, true);
+    const strict = await checkContract(without.base, fetch, { collector: true });
+    assert.equal(strict.ok, false);
+    assert.deepEqual(strict.failures, ['/__pulse/e: status 404, expected 204 (the collector is not mounted)']);
+  } finally {
+    without.server.close();
+  }
+  const cached = await serve({ ...ok, '/__pulse/e': { status: 204, headers: {}, body: '' } });
+  try {
+    const r = await checkContract(cached.base);
+    assert.deepEqual(r.failures, ['/__pulse/e: cache-control is missing, expected no-store']);
+  } finally {
+    cached.server.close();
+  }
+});
