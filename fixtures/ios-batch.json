@@ -1,0 +1,1 @@
+{"app":"pulse-kit-canary","events":[{"event":"app_opened","path":"\/","value":1},{"event":"paywall_viewed","outcome":"shown","path":"\/onboarding\/paywall","value":1},{"duration":1.5,"event":"habit_completed","path":"\/today","value":2},{"ct":"tt-oct","event":"signup","outcome":"apple","path":"\/signup","value":1},{"event":"session_end","value":1}],"source":"ios"}
