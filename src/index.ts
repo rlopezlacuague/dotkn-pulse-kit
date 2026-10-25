@@ -5,3 +5,4 @@ export { assertBuild, buildResponse, type Build } from './core/build.ts';
 export { healthResponse, runChecks, type Check, type Checks } from './core/health.ts';
 export { track, toDataPoint, classifyOs, type PulseEvent, type DataPoint, type AnalyticsEngineDataset } from './core/events.ts';
 export { pulse, type PulseOptions, type PulseHandler } from './worker.ts';
+export { collector, MAX_BATCH, type CollectorOptions } from './core/collector.ts';
