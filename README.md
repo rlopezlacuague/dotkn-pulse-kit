@@ -14,10 +14,10 @@ deploys, product events and business metrics with no per-app code, and dotkn-lab
 ## Install
 
 ```sh
-npm i dotkn-pulse-kit
-# until the first npm release, from a git tag:
-npm i github:rlopezlacuague/dotkn-pulse-kit#v0.1.0
+npm i github:rlopezlacuague/dotkn-pulse-kit#v0.1.1
 ```
+
+Install from the git tag. The package is not on npm, and an npm package of this name is not ours.
 
 The app id you pass below is the Pulse app id (by default the wrangler `name`). Add the dataset
 binding to `wrangler.jsonc` / `wrangler.toml` wherever you track events:
