@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // dotkn-pulse-kit <command>
-//   check <base-url>                       probe a deployed app against the contract (exit 1 on any deviation)
+//   check <base-url> [--collector]         probe a deployed app against the contract (exit 1 on any deviation);
+//                                          --collector: the /__pulse/e collector must be mounted
 //   stamp --out <file.ts>                  write `export const PULSE_BUILD = {commit, builtAt}` (fails without a commit)
 //   supabase --app <id> [--from-yaml <apps.yaml>]   print the pulse.metrics() migration
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -24,8 +25,8 @@ const USAGE = 'usage: dotkn-pulse-kit check <base-url> | stamp --out <file.ts> |
 try {
   if (cmd === 'check') {
     const base = rest[0] ?? fail(USAGE);
-    const r = await checkContract(base);
-    process.stdout.write(r.ok ? `ok ${base}: /health ok, /__build ${r.commit} built ${r.builtAt}\n` : `${r.failures.map((x) => `✖ ${x}`).join('\n')}\n`);
+    const r = await checkContract(base, fetch, { collector: rest.includes('--collector') });
+    process.stdout.write(r.ok ? `ok ${base}: /health ok, /__build ${r.commit} built ${r.builtAt}, collector ${r.collector}\n` : `${r.failures.map((x) => `✖ ${x}`).join('\n')}\n`);
     process.exit(r.ok ? 0 : 1);
   } else if (cmd === 'stamp') {
     const out = flag('out') ?? fail(USAGE);

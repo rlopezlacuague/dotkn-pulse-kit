@@ -7,9 +7,11 @@ export interface CheckReport {
   failures: string[];
   commit: string | null;
   builtAt: string | null;
+  /** ok: answers 204 + no-store; absent: not mounted (a failure only with {collector: true}). */
+  collector: 'ok' | 'absent' | 'fail';
 }
 
-export async function checkContract(base: string, f: typeof fetch = fetch): Promise<CheckReport> {
+export async function checkContract(base: string, f: typeof fetch = fetch, o: { collector?: boolean } = {}): Promise<CheckReport> {
   const failures: string[] = [];
   let commit: string | null = null;
   let builtAt: string | null = null;
@@ -46,5 +48,21 @@ export async function checkContract(base: string, f: typeof fetch = fetch): Prom
     if (typeof b.built_at === 'string' && ISO_8601.test(b.built_at) && Number.isFinite(Date.parse(b.built_at))) builtAt = b.built_at;
     else failures.push(`${CONTRACT.build}: built_at is ${JSON.stringify(b.built_at)}, expected ISO 8601`);
   }
-  return { ok: failures.length === 0, failures, commit, builtAt };
+  // The collector: an empty batch is valid input that writes nothing.
+  let collector: CheckReport['collector'] = 'fail';
+  try {
+    const res = await f(new URL(CONTRACT.collector, base), { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/json', 'user-agent': 'dotkn-pulse-kit check' }, body: '{"app":"","events":[]}' });
+    await res.text();
+    if (res.status === 204) {
+      const cc = res.headers.get('cache-control');
+      if (cc?.split(',').map((x) => x.trim()).includes('no-store')) collector = 'ok';
+      else failures.push(`${CONTRACT.collector}: cache-control is ${cc === null ? 'missing' : `"${cc}"`}, expected no-store`);
+    } else if (res.status === 404 || res.status === 405) {
+      collector = 'absent';
+      if (o.collector) failures.push(`${CONTRACT.collector}: status ${res.status}, expected 204 (the collector is not mounted)`);
+    } else failures.push(`${CONTRACT.collector}: status ${res.status}, expected 204`);
+  } catch (e) {
+    failures.push(`${CONTRACT.collector}: ${(e as Error).message}`);
+  }
+  return { ok: failures.length === 0, failures, commit, builtAt, collector };
 }
