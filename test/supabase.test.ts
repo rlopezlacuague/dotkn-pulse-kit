@@ -37,3 +37,22 @@ test('seeded from apps.yaml metrics: a scalar takes column "value" or the single
   assert.throws(() => metricSelect({ name: 'Bad', label: 'x', sql: 'select 1' }), /snake_case/);
   assert.throws(() => metricSelect({ name: 'x', label: 'x', sql: 'delete from t' }), /select/);
 });
+
+test('metricsFromEntry: yaml metrics, then one count per key table, then the subscriptions split for a revenue block', async () => {
+  const { metricsFromEntry } = await import('../src/supabase.ts');
+  const ms = metricsFromEntry({
+    id: 'promptarch',
+    supabase: { metrics: [{ name: 'dau', label: 'Active today', sql: 'select 1' }], keyTables: ['profiles', 'api_keys'] },
+    revenue: { creditTransactions: true },
+  });
+  assert.deepEqual(ms.map((m) => [m.name, m.label]), [
+    ['dau', 'Active today'],
+    ['rows_profiles', 'Rows in profiles'],
+    ['rows_api_keys', 'Rows in api_keys'],
+    ['subscriptions', 'Subscriptions by plan and status'],
+  ]);
+  assert.equal(ms[1]!.sql, 'select count(*) from public."profiles"');
+  assert.deepEqual(ms[3]!.dims, ['plan', 'status']);
+  assert.deepEqual(metricsFromEntry({ id: 'anx', supabase: { keyTables: [] } }), []);
+  assert.throws(() => metricsFromEntry({ id: 'x', supabase: { keyTables: ['bad name'] } }), /key table/);
+});
