@@ -28,6 +28,18 @@ export function metricSelect(m: YamlMetric): string {
   return `${head}, (select coalesce(j->>'value', (select e.value from jsonb_each_text(j) e limit 1))::numeric from (select to_jsonb(t) as j from (${body}) t limit 1) x), null::jsonb`;
 }
 
+/** Pulse's apps.yaml entry → the metrics a pulse.metrics() migration carries (decision Q5): the
+ * custom SQL metrics, one exact count per key table, and the subscriptions split for a revenue block. */
+export function metricsFromEntry(e: { id: string; supabase?: { metrics?: YamlMetric[]; keyTables?: string[] }; revenue?: unknown }): YamlMetric[] {
+  const out: YamlMetric[] = [...(e.supabase?.metrics ?? [])];
+  for (const t of e.supabase?.keyTables ?? []) {
+    if (!IDENT.test(t)) throw new Error(`key table "${t}" must be a plain identifier`);
+    out.push({ name: `rows_${t}`, label: `Rows in ${t}`, sql: `select count(*) from public."${t}"` });
+  }
+  if (e.revenue) out.push({ name: 'subscriptions', label: 'Subscriptions by plan and status', dims: ['plan', 'status'], sql: 'select plan, status, count(*) as value from public.subscriptions group by 1, 2' });
+  return out;
+}
+
 const DEFAULT = `select 'users_total'::text, 'Users'::text, 'count'::text, count(*)::numeric, null::jsonb from auth.users`;
 
 export function metricsMigration(o: { app: string; metrics?: YamlMetric[] }): string {

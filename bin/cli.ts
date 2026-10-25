@@ -8,7 +8,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { checkContract } from '../src/check.ts';
 import { stampBuild } from '../src/build-node.ts';
-import { metricsMigration, type YamlMetric } from '../src/supabase.ts';
+import { metricsFromEntry, metricsMigration, type YamlMetric } from '../src/supabase.ts';
 import { assertAppId } from '../src/contract.ts';
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -38,9 +38,9 @@ try {
     const yamlPath = flag('from-yaml');
     let metrics: YamlMetric[] | undefined;
     if (yamlPath) {
-      const doc = parse(readFileSync(yamlPath, 'utf8')) as { apps?: Array<{ id: string; supabase?: { metrics?: YamlMetric[] } }> };
+      const doc = parse(readFileSync(yamlPath, 'utf8')) as { apps?: Array<{ id: string; supabase?: { metrics?: YamlMetric[]; keyTables?: string[] }; revenue?: unknown }> };
       const entry = doc.apps?.find((a) => a.id === app) ?? fail(`no app "${app}" in ${yamlPath}`);
-      metrics = entry.supabase?.metrics ?? [];
+      metrics = metricsFromEntry(entry);
     }
     process.stdout.write(metricsMigration({ app, ...(metrics ? { metrics } : {}) }));
   } else fail(USAGE);
