@@ -2,24 +2,21 @@ name: release
 on:
   push:
     tags: ['v*']
+# Releases are git tags (consumers install from the tag); nothing is published to npm
+# (founder, 2026-10-25). The job verifies what the tag points at.
 permissions:
   contents: read
-  id-token: write
 jobs:
-  publish:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
       - run: npm ci
       - run: npm test
       - run: npm run build
       - run: node --test --disable-warning=ExperimentalWarning test/no-secrets.test.ts
       - name: tag matches package.json version
         run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
-      - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
