@@ -84,7 +84,8 @@ A migration in the app's own repo (`npx dotkn-pulse-kit supabase --app <id>`):
   role ran as the owner.
 - `revoke all on function pulse.metrics() from public, anon, authenticated`; `grant usage on schema pulse`
   and `grant execute on function pulse.metrics()` to `supabase_read_only_user`, guarded by a
-  `pg_roles` check so local stacks apply it too.
+  `pg_roles` check so local stacks apply it too. A function the metrics call that `PUBLIC` cannot
+  execute gets the same guarded grant (`--grant-execute schema.fn()`).
 - Schema `pulse` is not exposed by PostgREST, so the anon key cannot call it
   (`/rest/v1/rpc/metrics` answers 404).
 - `name` is snake_case; `unit` is one of `count`, `ms`, `bytes`, `ratio`, `bool`, `days`, `usd`;

@@ -1,6 +1,6 @@
 {
   "name": "dotkn-pulse-kit",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "The Pulse contract for every dotkn app: /health, /__build, one Analytics Engine event layout, and pulse.metrics() in Supabase.",
   "license": "MIT",
   "type": "module",

@@ -14,7 +14,7 @@ deploys, product events and business metrics with no per-app code, and dotkn-lab
 ## Install
 
 ```sh
-npm i github:rlopezlacuague/dotkn-pulse-kit#v0.1.1
+npm i github:rlopezlacuague/dotkn-pulse-kit#v0.1.2
 ```
 
 Install from the git tag. The package is not on npm, and an npm package of this name is not ours.
@@ -76,7 +76,12 @@ npx dotkn-pulse-kit supabase --app my-app --from-yaml ../pulse/config/apps.yaml 
 
 One `select` per metric (`name, label, unit, value, dims`). The function lives in schema `pulse`
 (not exposed by PostgREST), is revoked from `public, anon, authenticated` and granted only to
-`supabase_read_only_user`, the role Pulse reads with.
+`supabase_read_only_user`, the role Pulse reads with. It is `security invoker`, so it runs with
+that role's rights.
+
+If a metric calls one of your functions that `PUBLIC` cannot execute, add
+`--grant-execute public.my_fn()` (comma-separated for several). Grant only a function that
+schema-qualifies every table it reads, or whose `search_path` lists `pg_temp` last.
 
 ## Check a deploy
 

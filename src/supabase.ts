@@ -44,8 +44,18 @@ export function metricsFromEntry(e: { id: string; supabase?: { metrics?: YamlMet
 }
 
 const DEFAULT = `select 'users_total'::text, 'Users'::text, 'count'::text, count(*)::numeric, null::jsonb from auth.users`;
+const FUNCTION = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*\(\)$/;
 
-export function metricsMigration(o: { app: string; metrics?: YamlMetric[] }): string {
+/**
+ * grantExecute: functions the metrics call that PUBLIC cannot execute (an app helper granted to
+ * anon only, say). Under security invoker the read-only role calls them with its own rights, so
+ * each gets the same guarded grant as pulse.metrics(). Grant only a function whose relations are
+ * schema-qualified or whose search_path lists pg_temp last: a security definer helper that reads
+ * an unqualified table is the hole v0.1.1 closed.
+ */
+export function metricsMigration(o: { app: string; metrics?: YamlMetric[]; grantExecute?: string[] }): string {
+  for (const f of o.grantExecute ?? []) if (!FUNCTION.test(f)) throw new Error(`grantExecute: "${f}" must be a function as schema.name()`);
+  const grants = (o.grantExecute ?? []).map((f) => `\n    grant execute on function ${f} to supabase_read_only_user;`).join('');
   const selects = o.metrics?.length ? o.metrics.map(metricSelect) : [DEFAULT];
   return `-- pulse.metrics() for ${o.app} (dotkn-pulse-kit, contract v1). One select per metric; Pulse reads
 -- the rows as supabase_read_only_user. Unreachable with the anon key: schema pulse is not exposed
@@ -66,7 +76,7 @@ do $$ begin
   -- CI db reset) applies this migration too.
   if exists (select 1 from pg_roles where rolname = 'supabase_read_only_user') then
     grant usage on schema pulse to supabase_read_only_user;
-    grant execute on function pulse.metrics() to supabase_read_only_user;
+    grant execute on function pulse.metrics() to supabase_read_only_user;${grants}
   end if;
 end $$;
 `;

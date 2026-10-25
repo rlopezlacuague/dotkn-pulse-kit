@@ -3,7 +3,8 @@
 //   check <base-url> [--collector]         probe a deployed app against the contract (exit 1 on any deviation);
 //                                          --collector: the /__pulse/e collector must be mounted
 //   stamp --out <file.ts>                  write `export const PULSE_BUILD = {commit, builtAt}` (fails without a commit)
-//   supabase --app <id> [--from-yaml <apps.yaml>]   print the pulse.metrics() migration
+//   supabase --app <id> [--from-yaml <apps.yaml>] [--grant-execute <schema.fn()>[,...]]
+//                                          print the pulse.metrics() migration
 import { readFileSync, writeFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { checkContract } from '../src/check.ts';
@@ -20,7 +21,7 @@ const fail = (msg: string, code = 2): never => {
   process.stderr.write(`${msg}\n`);
   process.exit(code);
 };
-const USAGE = 'usage: dotkn-pulse-kit check <base-url> | stamp --out <file.ts> | supabase --app <id> [--from-yaml <apps.yaml>]';
+const USAGE = 'usage: dotkn-pulse-kit check <base-url> | stamp --out <file.ts> | supabase --app <id> [--from-yaml <apps.yaml>] [--grant-execute <schema.fn()>[,...]]';
 
 try {
   if (cmd === 'check') {
@@ -42,7 +43,8 @@ try {
       const entry = doc.apps?.find((a) => a.id === app) ?? fail(`no app "${app}" in ${yamlPath}`);
       metrics = metricsFromEntry(entry);
     }
-    process.stdout.write(metricsMigration({ app, ...(metrics ? { metrics } : {}) }));
+    const grantExecute = flag('grant-execute')?.split(',').map((f) => f.trim()).filter(Boolean);
+    process.stdout.write(metricsMigration({ app, ...(metrics ? { metrics } : {}), ...(grantExecute ? { grantExecute } : {}) }));
   } else fail(USAGE);
 } catch (e) {
   fail((e as Error).message, 1);
