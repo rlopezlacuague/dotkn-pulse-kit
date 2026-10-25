@@ -12,6 +12,7 @@ let package = Package(
     targets: [
         .target(name: "PulseKit", path: "swift/Sources/PulseKit"),
         .executableTarget(name: "pulsekit-smoke", dependencies: ["PulseKit"], path: "swift/Sources/pulsekit-smoke"),
-        .testTarget(name: "PulseKitTests", dependencies: ["PulseKit"], path: "swift/Tests/PulseKitTests"),
+        // The tests mutate a captured clock; Swift 5 mode keeps that a warning. The library is Swift 6.
+        .testTarget(name: "PulseKitTests", dependencies: ["PulseKit"], path: "swift/Tests/PulseKitTests", swiftSettings: [.swiftLanguageMode(.v5)]),
     ]
 )

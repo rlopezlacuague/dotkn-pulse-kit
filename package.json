@@ -87,7 +87,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "npm run typecheck && node --test --disable-warning=ExperimentalWarning test/*.test.ts",
     "prepack": "npm run build",
-    "canary:deploy": "node --disable-warning=ExperimentalWarning bin/cli.ts stamp --out canary/src/pulse-build.ts && wrangler deploy -c canary/wrangler.jsonc"
+    "canary:deploy": "node --disable-warning=ExperimentalWarning bin/cli.ts stamp --out canary/src/pulse-build.ts && wrangler deploy -c canary/wrangler.jsonc",
+    "contract:swift": "node --disable-warning=ExperimentalWarning scripts/contract-swift.ts",
+    "test:swift": "swift test"
   },
   "dependencies": {
     "yaml": "2.9.1"

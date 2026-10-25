@@ -3,3 +3,5 @@ dist/
 .wrangler/
 canary/src/pulse-build.ts
 *.tgz
+.build/
+.swiftpm/

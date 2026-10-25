@@ -19,3 +19,8 @@ jobs:
       - run: npm pack --dry-run
       # The secret scan again, now over the built dist/.
       - run: node --test --disable-warning=ExperimentalWarning test/no-secrets.test.ts
+  swift:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test
