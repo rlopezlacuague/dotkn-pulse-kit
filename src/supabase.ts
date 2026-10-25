@@ -1,7 +1,10 @@
 // pulse.metrics() — an app's business metrics, versioned in the app's own repo. Pulse calls it
 // as supabase_read_only_user over the Management API; schema `pulse` is not exposed by
 // PostgREST and the function is revoked from PUBLIC/anon/authenticated, so the anon key cannot
-// reach it. `security definer` reads RLS-protected tables while the caller stays read-only.
+// reach it. `security invoker`: it runs with the caller's rights, and the read-only role already
+// reads every table (pg_read_all_data, bypassrls), so the function holds no rights of its own.
+// v0.1.0 was `security definer` with search_path = public, and a temp view planted by the
+// read-only role ran as the owner (test/supabase-attack.test.ts); pg_temp is now searched last.
 export interface YamlMetric {
   name: string;
   label: string;
@@ -46,12 +49,13 @@ export function metricsMigration(o: { app: string; metrics?: YamlMetric[] }): st
   const selects = o.metrics?.length ? o.metrics.map(metricSelect) : [DEFAULT];
   return `-- pulse.metrics() for ${o.app} (dotkn-pulse-kit, contract v1). One select per metric; Pulse reads
 -- the rows as supabase_read_only_user. Unreachable with the anon key: schema pulse is not exposed
--- and the function is revoked from public, anon and authenticated.
+-- and the function is revoked from public, anon and authenticated. security invoker: it runs with
+-- the caller's rights (the read-only role reads every table), never the owner's.
 create schema if not exists pulse;
 
 create or replace function pulse.metrics()
 returns table(name text, label text, unit text, value numeric, dims jsonb)
-language sql stable security definer set search_path = public as $$
+language sql stable security invoker set search_path = pg_catalog, public, pg_temp as $$
   ${selects.join('\n  union all\n  ')}
 $$;
 

@@ -26,6 +26,10 @@ export const ISO_8601 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2
 
 export type Os = 'ios' | 'android' | 'mac' | 'win' | 'other' | 'bot' | '-';
 export type Source = 'web' | 'worker' | 'ios' | 'server';
+/** Written by app code (trusted). */
+export type ServerSource = 'worker' | 'server';
+/** Written only by the collector, from what a client sent (client-claimed, forgeable). */
+export type ClientSource = 'web' | 'ios';
 
 export function assertAppId(app: string): string {
   if (!APP_ID.test(app)) throw new Error(`"${app}" is not a Pulse app id (lowercase letters, digits and dashes, at most 96 bytes)`);

@@ -1,7 +1,9 @@
 // pulse_events (runtime side): one Analytics Engine point per event, in the frozen v1 layout.
 // index1 = app; blobs app, event, country, os, path, source, lang, campaign, outcome, layout;
 // doubles value, size. track() never throws: analytics must not break a request.
-import { CONTRACT, EVENT_NAME, assertAppId, type Os, type Source } from '../contract.ts';
+// App code writes source worker (default) or server; web and ios are written only by the
+// collector (writeClientPoint), so an event a client forged can never pass for a server one.
+import { CONTRACT, EVENT_NAME, assertAppId, type ClientSource, type Os, type ServerSource, type Source } from '../contract.ts';
 
 export interface AnalyticsEngineDataset {
   writeDataPoint(p: { indexes?: string[]; blobs?: string[]; doubles?: number[] }): void;
@@ -11,8 +13,8 @@ export interface PulseEvent {
   event: string;
   /** Defaults to the request's pathname. */
   path?: string;
-  /** Defaults to "worker". */
-  source?: Source;
+  /** Defaults to "worker". web and ios belong to the collector. */
+  source?: ServerSource;
   campaign?: string;
   outcome?: string;
   /** double1, default 1. */
@@ -45,9 +47,16 @@ function lang(header: string | null): string {
   return first ? first.slice(0, 16) : DASH;
 }
 
+const SERVER_SOURCES: readonly string[] = ['worker', 'server'] satisfies ServerSource[];
+
 export function toDataPoint(app: string, ev: PulseEvent, request?: Request): DataPoint {
+  if (ev.source !== undefined && !SERVER_SOURCES.includes(ev.source)) throw new Error(`source "${String(ev.source)}" is the collector's: app code writes worker or server`);
+  return point(app, ev, ev.source ?? 'worker', request);
+}
+
+function point(app: string, ev: Omit<PulseEvent, 'source'>, source: Source, request?: Request): DataPoint {
   assertAppId(app);
-  if (!EVENT_NAME.test(ev.event)) throw new Error(`"${ev.event}" is not a Pulse event name (${EVENT_NAME})`);
+  if (typeof ev.event !== 'string' || !EVENT_NAME.test(ev.event)) throw new Error(`"${String(ev.event)}" is not a Pulse event name (${EVENT_NAME})`);
   const cf = (request as (Request & { cf?: { country?: string } }) | undefined)?.cf;
   const path = ev.path ?? (request ? new URL(request.url).pathname : undefined);
   const blobs = [
@@ -56,7 +65,7 @@ export function toDataPoint(app: string, ev: PulseEvent, request?: Request): Dat
     cap(cf?.country, 8),
     classifyOs(request?.headers.get('user-agent')),
     cap(path, 512),
-    ev.source ?? 'worker',
+    source,
     request ? lang(request.headers.get('accept-language')) : DASH,
     cap(ev.campaign, 64),
     cap(ev.outcome, 64),
@@ -71,6 +80,17 @@ export function track(dataset: AnalyticsEngineDataset | undefined, app: string, 
   if (!dataset) return false;
   try {
     dataset.writeDataPoint(toDataPoint(app, ev, request));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The collector's writer: the one place a point gets source web or ios. Never throws. */
+export function writeClientPoint(dataset: AnalyticsEngineDataset | undefined, app: string, source: ClientSource, ev: Omit<PulseEvent, 'source'>, request?: Request): boolean {
+  if (!dataset) return false;
+  try {
+    dataset.writeDataPoint(point(app, ev, source, request));
     return true;
   } catch {
     return false;

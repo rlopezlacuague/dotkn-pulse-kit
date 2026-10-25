@@ -99,7 +99,9 @@ test('mounted: worker pulse({collect}) and pagesCollect write through the PULSE 
 // v0.1.1 hardening (the review of 2026-10-25). Measured before: a 95 MB POST to the canary was read
 // whole (67.6 ms CPU, 1.09 s wall) and answered 204; a text/plain POST from any origin was written.
 
-/** A body stream that counts the bytes the collector pulled: `chunks` of `size` bytes, or endless. */
+/** A body stream that counts the bytes the collector pulled: `chunks` of `size` bytes, or endless.
+ * highWaterMark 0: nothing is pulled until a reader asks (at 1, a stream pulls one chunk as soon
+ * as it is created, measured: 16,384 bytes with no reader at all). */
 function counted(size: number, chunks = Infinity) {
   let pulled = 0;
   let n = 0;
@@ -109,7 +111,7 @@ function counted(size: number, chunks = Infinity) {
       pulled += size;
       ctrl.enqueue(new Uint8Array(size).fill(0x20));
     },
-  });
+  }, { highWaterMark: 0 });
   return { stream, pulled: () => pulled };
 }
 const streamPost = (stream: ReadableStream<Uint8Array>, headers: Record<string, string> = {}) =>

@@ -1,19 +1,30 @@
 // /health (runtime side): {ok:true} with no checks (the archetype's exact body), {ok, checks}
-// with them; any failing check answers 503 {ok:false} and names its reason.
+// with them; any failing check answers 503 {ok:false}. /health is public, so a check's result is
+// one of three fixed words ("ok", "failed", "timeout"), never its error text (hosts, users, ports),
+// and a check that does not settle within CHECK_TIMEOUT_MS cannot hold the answer.
 export type Check = () => unknown | Promise<unknown>;
 export type Checks = Record<string, Check>;
 
+export const CHECK_TIMEOUT_MS = 2000;
 const HEADERS = { 'cache-control': 'no-store' } as const;
+const TIMEOUT = Symbol('timeout');
 
-/** Runs every check; a check passes unless it throws or returns false. */
-export async function runChecks(checks: Checks): Promise<Record<string, string>> {
+/** Runs every check; a check passes unless it throws, returns false or outlives the timeout. */
+export async function runChecks(checks: Checks, timeoutMs = CHECK_TIMEOUT_MS): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   await Promise.all(
     Object.entries(checks).map(async ([name, fn]) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
       try {
-        out[name] = (await fn()) === false ? 'failed' : 'ok';
-      } catch (e) {
-        out[name] = (e instanceof Error ? e.message : String(e)).slice(0, 200) || 'failed';
+        const late = new Promise<typeof TIMEOUT>((resolve) => {
+          timer = setTimeout(() => resolve(TIMEOUT), timeoutMs);
+        });
+        const r = await Promise.race([Promise.resolve().then(fn), late]);
+        out[name] = r === TIMEOUT ? 'timeout' : r === false ? 'failed' : 'ok';
+      } catch {
+        out[name] = 'failed';
+      } finally {
+        clearTimeout(timer);
       }
     }),
   );

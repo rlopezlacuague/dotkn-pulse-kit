@@ -55,13 +55,21 @@ private struct WireBatch: Encodable {
     var source: String
 }
 
-/// The event queue: persisted to a file, flushed at 20 events, 30 s after the oldest one and when
-/// the app leaves the foreground; a failed batch is retried on the next flush and an event older
-/// than 24 h is dropped. Batches hold at most `PulseContract.maxBatch` events.
+/// The event queue: flushed at 20 events, 30 s after the oldest one and when the app leaves the
+/// foreground; a failed batch is retried later and an event older than 24 h is dropped. Batches
+/// hold at most `PulseContract.maxBatch` events.
+///
+/// Bounded since v0.1.1: at most `maxQueue` events (the oldest go first); the file is written by
+/// the timer's tick (every 5 s, only when something changed) and by flushes, never per event;
+/// after a failed send, automatic flushes wait 30 s, doubling to 15 min (an explicit or background
+/// flush always tries); an event with a non-finite value or duration is dropped on its own.
 public actor PulseClient {
     public static let flushCount = 20
     public static let flushAfter: TimeInterval = 30
     public static let maxAge: TimeInterval = 24 * 3600
+    public static let maxQueue = 1000
+    static let firstRetry: TimeInterval = 30
+    static let maxRetry: TimeInterval = 15 * 60
 
     let app: String
     let endpoint: URL
@@ -71,6 +79,10 @@ public actor PulseClient {
     let language: String
     private var queue: [QueuedEvent]
     private var flushing = false
+    private var dirty = false
+    private var writes = 0
+    private var retryAt: Date?
+    private var retryDelay = PulseClient.firstRetry
     private let nameRegex = try! Regex(PulseContract.eventName)
 
     public init(
@@ -102,21 +114,32 @@ public actor PulseClient {
     }
 
     public func track(_ event: String, path: String? = nil, outcome: String? = nil, campaign: String? = nil, value: Double = 1, duration: Double? = nil) async {
-        guard (try? nameRegex.wholeMatch(in: event)) != nil else { return }
+        guard (try? nameRegex.wholeMatch(in: event)) != nil, value.isFinite, duration?.isFinite ?? true else { return }
         queue.append(QueuedEvent(event: event, path: path, outcome: outcome, ct: campaign, value: value, duration: duration, at: now()))
-        persist()
-        if queue.count >= Self.flushCount { await flush() }
+        if queue.count > Self.maxQueue { queue.removeFirst(queue.count - Self.maxQueue) }
+        dirty = true
+        if queue.count >= Self.flushCount, mayRetry() { await flush() }
     }
 
-    /// The timer's job: flush once the oldest queued event is 30 s old.
+    /// The timer's job (every 5 s): write what changed, and flush once the oldest queued event is
+    /// 30 s old (unless backing off after a failed send).
     public func tick() async {
-        guard let oldest = queue.first?.at, now().timeIntervalSince(oldest) >= Self.flushAfter else { return }
+        if dirty { persist() }
+        guard let oldest = queue.first?.at, now().timeIntervalSince(oldest) >= Self.flushAfter, mayRetry() else { return }
         await flush()
     }
 
-    public func didEnterBackground() async { await flush() }
+    public func didEnterBackground() async {
+        if dirty { persist() }
+        await flush()
+    }
 
     public func queuedCount() -> Int { queue.count }
+
+    /// How many times the queue file was written (tests: never once per event).
+    func persistWrites() -> Int { writes }
+
+    private func mayRetry() -> Bool { retryAt.map { now() >= $0 } ?? true }
 
     /// Returns once no flush is in flight.
     public func waitForIdle() async {
@@ -128,20 +151,27 @@ public actor PulseClient {
         flushing = true
         defer { flushing = false }
         let cutoff = now().addingTimeInterval(-Self.maxAge)
+        let before = queue.count
         queue.removeAll { $0.at < cutoff }
-        persist()
+        if queue.count != before { dirty = true }
         while !queue.isEmpty {
             let batch = Array(queue.prefix(PulseContract.maxBatch))
-            guard let body = try? Self.encode(app: app, batch) else { queue.removeFirst(batch.count); continue }
+            // Cannot fail for a queued event (track() admits finite numbers only); kept fail-closed.
+            guard let body = try? Self.encode(app: app, batch) else { queue.removeFirst(batch.count); dirty = true; continue }
             do {
                 try await transport.send(body, to: endpoint, language: language)
                 queue.removeFirst(batch.count)
-                persist()
+                dirty = true
             } catch {
-                persist()
+                retryAt = now().addingTimeInterval(retryDelay)
+                retryDelay = min(retryDelay * 2, Self.maxRetry)
+                if dirty { persist() }
                 return
             }
         }
+        retryAt = nil
+        retryDelay = Self.firstRetry
+        if dirty { persist() }
     }
 
     static func encode(app: String, _ batch: [QueuedEvent]) throws -> Data {
@@ -152,7 +182,9 @@ public actor PulseClient {
     }
 
     private func persist() {
+        dirty = false
         guard let storage else { return }
+        writes += 1
         do {
             try FileManager.default.createDirectory(at: storage.deletingLastPathComponent(), withIntermediateDirectories: true)
             try JSONEncoder().encode(queue).write(to: storage, options: .atomic)
