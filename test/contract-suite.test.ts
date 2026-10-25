@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { pulse } from '../src/worker.ts';
+import { runChecks, CHECK_TIMEOUT_MS } from '../src/core/health.ts';
 import { pagesHealth, pagesBuild } from '../src/pages.ts';
 import { healthLoader, buildLoader, pulseRoutes } from '../src/react-router.ts';
 import { healthGET, buildGET } from '../src/next.ts';
@@ -45,16 +46,24 @@ test('pages functions, react-router loaders, next route handlers and astro endpo
   await same(await astroBuild(build)(), fx.__build, 'astro /__build');
 });
 
-test('checks: all ok adds "checks" (additive field), one failing is 503 {ok:false} naming the reason', async () => {
+test('checks: all ok adds "checks" (additive field), one failing is 503 {ok:false} with a fixed reason, never the error text', async () => {
   const ok = pulse({ app: 'canary', build, checks: { db: async () => true } });
   const r1 = await ok(req('/health'));
   assert.equal(r1?.status, 200);
   assert.deepEqual(await r1?.json(), { ok: true, checks: { db: 'ok' } });
-  const bad = pulse({ app: 'canary', build, checks: { db: async () => { throw new Error('connection refused'); }, env: () => false } });
+  const bad = pulse({ app: 'canary', build, checks: { db: async () => { throw new Error('connect ECONNREFUSED 10.0.3.7:5432 user=app_admin'); }, env: () => false } });
   const r2 = await bad(req('/health'));
   assert.equal(r2?.status, 503);
   assert.equal(r2?.headers.get('cache-control'), 'no-store');
-  assert.deepEqual(await r2?.json(), { ok: false, checks: { db: 'connection refused', env: 'failed' } });
+  assert.deepEqual(await r2?.json(), { ok: false, checks: { db: 'failed', env: 'failed' } });
+});
+
+test('a check that never settles answers "timeout" after CHECK_TIMEOUT_MS (2 s), so /health cannot hang', async () => {
+  assert.equal(CHECK_TIMEOUT_MS, 2000);
+  const t0 = Date.now();
+  const results = await runChecks({ hang: () => new Promise(() => {}), fine: () => true }, 50);
+  assert.deepEqual(results, { hang: 'timeout', fine: 'ok' });
+  assert.ok(Date.now() - t0 < 1000, 'answered at the timeout, not at the hang');
 });
 
 test('a build that is not the contract fails when the handler is created, not when probed', () => {

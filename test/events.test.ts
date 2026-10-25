@@ -23,9 +23,21 @@ test('defaults: value 1, size 0, missing request fields are "-", explicit path a
   const p = toDataPoint('canary', { event: 'request' });
   assert.deepEqual(p.blobs, ['canary', 'request', '-', '-', '-', 'worker', '-', '-', '-', 'v1']);
   assert.deepEqual(p.doubles, [1, 0]);
-  const q = toDataPoint('canary', { event: 'tap', path: '/x', source: 'ios' }, request());
+  const q = toDataPoint('canary', { event: 'tap', path: '/x', source: 'server' }, request());
   assert.equal(q.blobs[4], '/x');
-  assert.equal(q.blobs[5], 'ios');
+  assert.equal(q.blobs[5], 'server');
+});
+
+test('app code writes only worker or server: web and ios are the collector\'s (client-claimed), so a forged event never looks like a server one', () => {
+  for (const source of ['web', 'ios'] as const) {
+    assert.throws(() => toDataPoint('canary', { event: 'app_tap', source } as never), /source/);
+    assert.equal(track({ writeDataPoint: () => {} }, 'canary', { event: 'app_tap', source } as never), false);
+  }
+});
+
+test('an event that is not a string is refused (RegExp.test would coerce undefined to "undefined")', () => {
+  assert.throws(() => toDataPoint('canary', { event: undefined } as never), /event name/);
+  assert.throws(() => toDataPoint('canary', { event: 42 } as never), /event name/);
 });
 
 test('UA classification: ios, android, mac, win, bot, other', () => {

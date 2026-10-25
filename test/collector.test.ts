@@ -95,3 +95,73 @@ test('mounted: worker pulse({collect}) and pagesCollect write through the PULSE 
   assert.equal(p.points.length, 5);
   await is204(await pagesCollect({ app: 'pulse-kit-canary' })({ request: post(IOS_BATCH), env: {} }));
 });
+
+// v0.1.1 hardening (the review of 2026-10-25). Measured before: a 95 MB POST to the canary was read
+// whole (67.6 ms CPU, 1.09 s wall) and answered 204; a text/plain POST from any origin was written.
+
+/** A body stream that counts the bytes the collector pulled: `chunks` of `size` bytes, or endless. */
+function counted(size: number, chunks = Infinity) {
+  let pulled = 0;
+  let n = 0;
+  const stream = new ReadableStream<Uint8Array>({
+    pull(ctrl) {
+      if (n++ >= chunks) return ctrl.close();
+      pulled += size;
+      ctrl.enqueue(new Uint8Array(size).fill(0x20));
+    },
+  });
+  return { stream, pulled: () => pulled };
+}
+const streamPost = (stream: ReadableStream<Uint8Array>, headers: Record<string, string> = {}) =>
+  new Request('https://canary.example/__pulse/e', { method: 'POST', body: stream, duplex: 'half', headers: { 'content-type': 'application/json', ...headers } } as RequestInit);
+
+test('a declared content-length over 64 KB is refused before one byte of the body is read', async () => {
+  const { points, ds } = sink();
+  // Declares 95 MB, offers 64 KB (finite, so the unfixed collector finishes and the count shows).
+  const body = counted(16 * 1024, 4);
+  await is204(await collector({ app: 'pulse-kit-canary', dataset: ds })(streamPost(body.stream, { 'content-length': String(95 * 1024 * 1024) })));
+  assert.equal(body.pulled(), 0);
+  assert.equal(points.length, 0);
+});
+
+test('a body without a length (chunked) is read only up to 64 KB, then the read stops', async () => {
+  const { points, ds } = sink();
+  // 10 MB offered in 16 KB chunks (finite, so the unfixed collector finishes and the count shows).
+  const body = counted(16 * 1024, 640);
+  await is204(await collector({ app: 'pulse-kit-canary', dataset: ds })(streamPost(body.stream)));
+  assert.ok(body.pulled() <= 64 * 1024 + 16 * 1024, `pulled ${body.pulled()} of 10,485,760 bytes offered`);
+  assert.equal(points.length, 0);
+});
+
+test('the 64 KB limit counts bytes, not UTF-16 characters', async () => {
+  const { points, ds } = sink();
+  const c = collector({ app: 'pulse-kit-canary', dataset: ds });
+  // 40,000 three-byte characters: 40,000 UTF-16 units, 120,000 bytes.
+  await is204(await c(post(JSON.stringify({ app: 'pulse-kit-canary', events: [{ event: 'big', outcome: '€'.repeat(40_000) }] }))));
+  assert.equal(points.length, 0);
+  await is204(await c(post(JSON.stringify({ app: 'pulse-kit-canary', events: [{ event: 'small', outcome: '€'.repeat(100) }] }))));
+  assert.equal(points.length, 1);
+});
+
+test('only a JSON body is collected: text/plain (a cross-site form or no-cors fetch) and a missing type are dropped', async () => {
+  const { points, ds } = sink();
+  const c = collector({ app: 'pulse-kit-canary', dataset: ds });
+  const body = JSON.stringify({ app: 'pulse-kit-canary', source: 'web', events: [{ event: 'forged' }] });
+  await is204(await c(post(body, { 'content-type': 'text/plain', origin: 'https://evil.example' })));
+  await is204(await c(new Request('https://canary.example/__pulse/e', { method: 'POST', body: new Blob([body]) })));
+  assert.equal(points.length, 0);
+  await is204(await c(post(body, { 'content-type': 'Application/JSON; charset=utf-8' })));
+  assert.deepEqual(points.map((p) => p.blobs?.[1]), ['forged']);
+});
+
+test('client values are clamped (value 0..1e6, duration 0..86,400,000 ms) and a path keeps no query or fragment', async () => {
+  const { points, ds } = sink();
+  const c = collector({ app: 'pulse-kit-canary', dataset: ds });
+  await c(post(JSON.stringify({ app: 'pulse-kit-canary', events: [
+    { event: 'a', value: 1e308, duration: 1e12, path: '/reset?token=SECRET&email=ana@example.com' },
+    { event: 'b', value: -5, duration: -1, path: '/p#frag' },
+    { event: 'c', value: 2.5, duration: 1200, path: '/ok' },
+  ] })));
+  assert.deepEqual(points.map((p) => p.doubles), [[1_000_000, 86_400_000], [0, 0], [2.5, 1200]]);
+  assert.deepEqual(points.map((p) => p.blobs?.[4]), ['/reset', '/p', '/ok']);
+});

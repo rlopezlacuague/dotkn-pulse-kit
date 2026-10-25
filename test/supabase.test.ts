@@ -5,11 +5,12 @@ import { metricsMigration, metricSelect } from '../src/supabase.ts';
 
 const template = readFileSync(new URL('../sql/pulse_metrics.sql', import.meta.url), 'utf8');
 
-test('the shipped template: schema pulse, the v1 signature, security definer, revoked from PUBLIC/anon/authenticated, granted only to the read-only role (guarded)', () => {
+test('the shipped template: schema pulse, the v1 signature, security invoker with a pinned search_path, revoked from PUBLIC/anon/authenticated, granted only to the read-only role (guarded)', () => {
   for (const sql of [template, metricsMigration({ app: 'canary' })]) {
     assert.match(sql, /create schema if not exists pulse;/);
     assert.match(sql, /create or replace function pulse\.metrics\(\)\s+returns table\(name text, label text, unit text, value numeric, dims jsonb\)/);
-    assert.match(sql, /language sql stable security definer set search_path = public/);
+    assert.match(sql, /language sql stable security invoker set search_path = pg_catalog, public, pg_temp as/);
+    assert.ok(!/security definer/.test(sql), 'never runs with the owner\'s rights');
     assert.match(sql, /revoke all on function pulse\.metrics\(\) from public, anon, authenticated;/);
     assert.match(sql, /if exists \(select 1 from pg_roles where rolname = 'supabase_read_only_user'\) then\s+grant usage on schema pulse to supabase_read_only_user;\s+grant execute on function pulse\.metrics\(\) to supabase_read_only_user;/);
     assert.ok(!/\bbegin;|\bcommit;/i.test(sql.replace(/do \$\$ begin/g, '')), 'no explicit transaction: the migration runner wraps each file in one');
