@@ -1,0 +1,6 @@
+{
+  "_source": "dotkn-lab templates/archetypes/workers-web: app/routes/health.ts, app/routes/build-info.ts and test/routes.test.ts (status 200, cache-control no-store, Response.json bodies). Every kit adapter must answer these bytes.",
+  "build": { "commit": "0000000000000000000000000000000000000000", "builtAt": "1970-01-01T00:00:00.000Z" },
+  "health": { "status": 200, "headers": { "cache-control": "no-store", "content-type": "application/json" }, "body": "{\"ok\":true}" },
+  "__build": { "status": 200, "headers": { "cache-control": "no-store", "content-type": "application/json" }, "body": "{\"commit\":\"0000000000000000000000000000000000000000\",\"built_at\":\"1970-01-01T00:00:00.000Z\"}" }
+}
