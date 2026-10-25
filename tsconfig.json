@@ -16,5 +16,5 @@
     "skipLibCheck": true,
     "resolveJsonModule": true
   },
-  "include": ["src", "bin", "test", "canary/src", "scripts"]
+  "include": ["src", "bin", "test", "scripts"]
 }

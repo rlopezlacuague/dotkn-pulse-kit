@@ -1,0 +1,11 @@
+// pulse-kit-canary: the kit's permanent integration target. No account id, no KV/D1 ids here
+// (public repo): wrangler deploys to the logged-in account. The dataset is created on first write.
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "pulse-kit-canary",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "analytics_engine_datasets": [{ "binding": "PULSE", "dataset": "pulse_events" }]
+}

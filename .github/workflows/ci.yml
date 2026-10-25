@@ -1,0 +1,21 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      # The published file list: dist/src, dist/bin, sql, CONTRACT.md, README, package.json.
+      - run: npm pack --dry-run
+      # The secret scan again, now over the built dist/.
+      - run: node --test --disable-warning=ExperimentalWarning test/no-secrets.test.ts

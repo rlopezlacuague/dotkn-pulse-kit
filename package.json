@@ -4,24 +4,84 @@
   "description": "The Pulse contract for every dotkn app: /health, /__build, one Analytics Engine event layout, and pulse.metrics() in Supabase.",
   "license": "MIT",
   "type": "module",
-  "repository": { "type": "git", "url": "git+https://github.com/rlopezlacuague/dotkn-pulse-kit.git" },
-  "engines": { "node": ">=20" },
-  "bin": { "dotkn-pulse-kit": "dist/bin/cli.js" },
-  "exports": {
-    ".": { "types": "./dist/src/index.d.ts", "default": "./dist/src/index.js" },
-    "./contract": { "types": "./dist/src/contract.d.ts", "default": "./dist/src/contract.js" },
-    "./worker": { "types": "./dist/src/worker.d.ts", "default": "./dist/src/worker.js" },
-    "./pages": { "types": "./dist/src/pages.d.ts", "default": "./dist/src/pages.js" },
-    "./react-router": { "types": "./dist/src/react-router.d.ts", "default": "./dist/src/react-router.js" },
-    "./next": { "types": "./dist/src/next.d.ts", "default": "./dist/src/next.js" },
-    "./next-config": { "types": "./dist/src/next-config.d.ts", "default": "./dist/src/next-config.js" },
-    "./astro": { "types": "./dist/src/astro.d.ts", "default": "./dist/src/astro.js" },
-    "./vite": { "types": "./dist/src/vite.d.ts", "default": "./dist/src/vite.js" },
-    "./events": { "types": "./dist/src/core/events.d.ts", "default": "./dist/src/core/events.js" },
-    "./supabase": { "types": "./dist/src/supabase.d.ts", "default": "./dist/src/supabase.js" },
-    "./build": { "types": "./dist/src/build-node.d.ts", "default": "./dist/src/build-node.js" }
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rlopezlacuague/dotkn-pulse-kit.git"
   },
-  "files": ["dist/src", "dist/bin", "sql", "CONTRACT.md"],
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "dotkn-pulse-kit": "dist/bin/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    },
+    "./contract": {
+      "types": "./dist/src/contract.d.ts",
+      "default": "./dist/src/contract.js"
+    },
+    "./worker": {
+      "types": "./dist/src/worker.d.ts",
+      "default": "./dist/src/worker.js"
+    },
+    "./pages": {
+      "types": "./dist/src/pages.d.ts",
+      "default": "./dist/src/pages.js"
+    },
+    "./react-router": {
+      "types": "./dist/src/react-router.d.ts",
+      "default": "./dist/src/react-router.js"
+    },
+    "./next": {
+      "types": "./dist/src/next.d.ts",
+      "default": "./dist/src/next.js"
+    },
+    "./next-config": {
+      "types": "./dist/src/next-config.d.ts",
+      "default": "./dist/src/next-config.js"
+    },
+    "./astro": {
+      "types": "./dist/src/astro.d.ts",
+      "default": "./dist/src/astro.js"
+    },
+    "./vite": {
+      "types": "./dist/src/vite.d.ts",
+      "default": "./dist/src/vite.js"
+    },
+    "./events": {
+      "types": "./dist/src/core/events.d.ts",
+      "default": "./dist/src/core/events.js"
+    },
+    "./supabase": {
+      "types": "./dist/src/supabase.d.ts",
+      "default": "./dist/src/supabase.js"
+    },
+    "./build": {
+      "types": "./dist/src/build-node.d.ts",
+      "default": "./dist/src/build-node.js"
+    },
+    "./astro/health": {
+      "types": "./dist/src/astro/health.d.ts",
+      "default": "./dist/src/astro/health.js"
+    },
+    "./astro/build": {
+      "types": "./dist/src/astro/build.d.ts",
+      "default": "./dist/src/astro/build.js"
+    },
+    "./check": {
+      "types": "./dist/src/check.d.ts",
+      "default": "./dist/src/check.js"
+    }
+  },
+  "files": [
+    "dist/src",
+    "dist/bin",
+    "sql",
+    "CONTRACT.md"
+  ],
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",

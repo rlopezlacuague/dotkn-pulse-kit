@@ -1,0 +1,38 @@
+// The build stamp (Node, at build time): the commit a deploy is built from, failing closed.
+// Precedence: PULSE_BUILD_COMMIT, GITHUB_SHA, WORKERS_CI_COMMIT_SHA, then `git rev-parse HEAD`,
+// so CI tarballs without .git still stamp the right commit and nothing ever reports a guess.
+import { execFileSync } from 'node:child_process';
+import { COMMIT } from './contract.ts';
+import type { Build } from './core/build.ts';
+
+export type Env = Record<string, string | undefined>;
+export type Exec = () => string;
+
+const gitHead: Exec = () => execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+const VARS = ['PULSE_BUILD_COMMIT', 'GITHUB_SHA', 'WORKERS_CI_COMMIT_SHA'] as const;
+
+export function resolveCommit(env: Env = process.env, exec: Exec = gitHead): string {
+  for (const name of VARS) {
+    const v = env[name]?.trim();
+    if (!v) continue;
+    if (!COMMIT.test(v)) throw new Error(`${name} is "${v}", not a 40-hex commit`);
+    return v;
+  }
+  let out: string;
+  try {
+    out = exec().trim();
+  } catch {
+    throw new Error(`no commit: set PULSE_BUILD_COMMIT (or GITHUB_SHA / WORKERS_CI_COMMIT_SHA) or build inside a git checkout`);
+  }
+  if (!COMMIT.test(out)) throw new Error(`git rev-parse HEAD answered "${out.slice(0, 60)}", not a 40-hex commit`);
+  return out;
+}
+
+export function stampBuild(env: Env = process.env, exec: Exec = gitHead, now: () => number = Date.now): Build {
+  return { commit: resolveCommit(env, exec), builtAt: new Date(now()).toISOString() };
+}
+
+/** The two values as JSON literals for a bundler's `define`. */
+export function defineValues(b: Build): { __PULSE_COMMIT__: string; __PULSE_BUILT_AT__: string } {
+  return { __PULSE_COMMIT__: JSON.stringify(b.commit), __PULSE_BUILT_AT__: JSON.stringify(b.builtAt) };
+}
