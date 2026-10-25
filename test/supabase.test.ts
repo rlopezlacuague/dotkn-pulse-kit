@@ -57,3 +57,10 @@ test('metricsFromEntry: yaml metrics, then one count per key table, then the sub
   assert.deepEqual(metricsFromEntry({ id: 'anx', supabase: { keyTables: [] } }), []);
   assert.throws(() => metricsFromEntry({ id: 'x', supabase: { keyTables: ['bad name'] } }), /key table/);
 });
+
+test('grantExecute: a function a metric calls is granted to the read-only role (guarded, like the function itself); only schema.name() is accepted', () => {
+  const sql = metricsMigration({ app: 'promptarch', metrics: [{ name: 'prompts_total', label: 'Prompts', sql: 'select prompts_total from public_stats()' }], grantExecute: ['public.public_stats()'] });
+  assert.match(sql, /grant execute on function pulse\.metrics\(\) to supabase_read_only_user;\s+grant execute on function public\.public_stats\(\) to supabase_read_only_user;\s+end if;/);
+  assert.ok(!/to (anon|authenticated|public)\b/.test(sql.replace(/from public, anon, authenticated/, '')), 'nothing granted to API roles');
+  for (const bad of ['public_stats()', 'public.public_stats', 'public.x(); drop table y; --()', 'Public.Stats()']) assert.throws(() => metricsMigration({ app: 'x', grantExecute: [bad] }), /function/, bad);
+});

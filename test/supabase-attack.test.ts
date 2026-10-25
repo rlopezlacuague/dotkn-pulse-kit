@@ -78,3 +78,31 @@ for (const [label, migration, metric, value] of [['the shipped template', templa
     assert.match(await denied(db, 'anon'), /permission denied for schema pulse/);
   });
 }
+
+// security invoker means the read-only role calls what the body calls with its own rights. An app
+// helper revoked from PUBLIC (promptarch's public_stats(), granted to anon only) needs an explicit
+// grant: measured on promptarch's full history, "permission denied for function public_stats".
+test('a metric calling a function revoked from PUBLIC: denied without grantExecute, read with it', async () => {
+  const counted = { name: 'prompts_total', label: 'Prompts', sql: 'select prompts_total from public_stats()' };
+  const helper = `set role app_owner;
+    create function public.public_stats() returns table(prompts_total bigint) language sql stable security definer
+      set search_path = public, pg_catalog as $$ select count(*) from public.profiles $$;
+    revoke all on function public.public_stats() from public;
+    grant execute on function public.public_stats() to anon;
+    reset role;`;
+  for (const [grant, expect] of [[false, /permission denied for function public_stats/], [true, null]] as const) {
+    const db = await project('select 1');
+    await db.exec(helper);
+    await db.exec(`set role app_owner; ${metricsMigration({ app: 'promptarch', metrics: [counted], ...(grant ? { grantExecute: ['public.public_stats()'] } : {}) })}; reset role;`);
+    let got: unknown;
+    try {
+      got = await rows(db, `set role supabase_read_only_user; select name, value::text from pulse.metrics();`);
+    } catch (e) {
+      got = (e as Error).message;
+    } finally {
+      await db.exec('reset role');
+    }
+    if (expect) assert.match(String(got), expect);
+    else assert.deepEqual(got, [{ name: 'prompts_total', value: '2' }]);
+  }
+});
