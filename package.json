@@ -86,18 +86,17 @@
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "npm run typecheck && node --test --disable-warning=ExperimentalWarning test/*.test.ts",
-    "prepack": "npm run build",
-    "canary:deploy": "npm run build && node --disable-warning=ExperimentalWarning bin/cli.ts stamp --out canary/src/pulse-build.ts && wrangler deploy -c canary/wrangler.jsonc",
+    "canary:deploy": "npm run build && node --disable-warning=ExperimentalWarning bin/cli.ts stamp --out canary/src/pulse-build.ts && npx --yes wrangler@4.152.0 deploy -c canary/wrangler.jsonc",
     "contract:swift": "node --disable-warning=ExperimentalWarning scripts/contract-swift.ts",
     "test:swift": "swift test",
-    "canary:bundle": "npm run build && node --disable-warning=ExperimentalWarning bin/cli.ts stamp --out canary/src/pulse-build.ts && wrangler deploy -c canary/wrangler.jsonc --dry-run --outdir .wrangler/canary-bundle"
+    "canary:bundle": "npm run build && node --disable-warning=ExperimentalWarning bin/cli.ts stamp --out canary/src/pulse-build.ts && npx --yes wrangler@4.152.0 deploy -c canary/wrangler.jsonc --dry-run --outdir .wrangler/canary-bundle",
+    "prepare": "npm run build"
   },
   "dependencies": {
     "yaml": "2.9.1"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
-    "typescript": "7.0.2",
-    "wrangler": "4.152.0"
+    "typescript": "7.0.2"
   }
 }
