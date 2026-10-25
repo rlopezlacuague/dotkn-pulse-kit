@@ -26,6 +26,12 @@ One Analytics Engine dataset for every app (`pulse_events`), bound as `PULSE`. `
 Pulse app id, so sampling and queries are per app (`WHERE index1 = '<id>'`). Event names match
 `^[a-z][a-z0-9_.]{0,63}$`. Missing values are `-`.
 
+Counts are estimates. Analytics Engine samples at write time when points arrive quickly on one
+index, and keeps a weight per stored row in `_sample_interval`. Count with
+`SUM(_sample_interval)`, never `count()`, and do not expect any single event to be stored. The
+canary measured this on 2026-10-25: 20 requests in about 2 seconds were stored as 6 rows, read as
+21, and a batch of 5 iOS events was stored as 1 row, read as 4.
+
 | Column | Field | Meaning |
 |---|---|---|
 | index1 | `app` | the Pulse app id (at most 96 bytes) |
